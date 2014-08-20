@@ -3,9 +3,10 @@ package com.example.imageviewer;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
 
 public class FullscreenActivity extends Activity {
-    ImageViewer ImageViewer;
+    ImageViewer imageViewer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -13,6 +14,14 @@ public class FullscreenActivity extends Activity {
 
         setContentView(R.layout.activity_fullscreen);
 
-        ImageViewer = (ImageViewer) findViewById(R.id.fullscreen_content);
+        imageViewer = (ImageViewer) findViewById(R.id.fullscreen_content);
+
+        new Handler().postDelayed(new Runnable() {
+
+            @Override
+            public void run() {
+                imageViewer.test();
+            }
+        }, 2000);
     }
 }

@@ -7,12 +7,17 @@ import android.R.integer;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
 import android.util.AttributeSet;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.ImageView;
 
 public class TheImage extends ImageView {
-    
+
+    public int initWidth = 0;
+    public int initHeight = 0;
+
     public TheImage(Context context) {
         super(context);
     }
@@ -25,32 +30,47 @@ public class TheImage extends ImageView {
         super(context, attrs, defStyle);
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        try {
+            Bitmap bitmap = ((BitmapDrawable) getDrawable()).getBitmap();
+            if (!bitmap.isRecycled()) {
+                bitmap.recycle();
+            }
+        } catch (Exception e) {
+            
+        }
+    }
+
     public void load(File file, int w, int h) {
-        ImageView imageView = new ImageView(getContext());
+        setBackgroundColor(Color.CYAN);
         Bitmap bitmap;
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
         bitmap = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
         options.inJustDecodeBounds = false;
-        int hei = options.outHeight;
-        int wid = options.outWidth;
+        float hei = options.outHeight;
+        float wid = options.outWidth;
 
         float r = 1;
         if (wid > w || hei > h) {
             float beWidth = wid / w;
             float beHeight = hei / h;
             if (beWidth < beHeight) {
-                r = beWidth;
-            } else {
                 r = beHeight;
+            } else {
+                r = beWidth;
             }
         }
-        wid /= r;
-        hei /= r;
-        imageView.setLayoutParams(new LayoutParams(wid, hei));
+        initWidth = (int) (wid / r);
+        initHeight = (int) (hei / r);
+        if (r < 1) {
+            r = 1;
+        }
         options.inSampleSize = (int) r;
         bitmap = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-        imageView.setImageBitmap(bitmap);
+        setImageBitmap(bitmap);
     }
 
 }
