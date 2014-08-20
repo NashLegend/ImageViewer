@@ -8,6 +8,7 @@ import android.animation.Animator;
 import android.animation.Animator.AnimatorListener;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -132,9 +133,12 @@ public class ImageViewer extends RelativeLayout {
             LayoutParams paramsr = new LayoutParams(rightImage.initWidth, rightImage.initHeight);
             rightImage.setLayoutParams(paramsr);
             addView(rightImage);
-            rightImage.setX(getWidth() + (getWidth() - rightImage.initWidth) / 2);
+            rightImage.setX((getWidth() - rightImage.initWidth) / 2);
             rightImage.setY((getHeight() - rightImage.initHeight) / 2);
-            rightPoint = new Point(getWidth() + (getWidth() - rightImage.initWidth) / 2,
+            rightImage.setImageAlpha(0);
+            rightImage.setScaleX(0.001f);
+            rightImage.setScaleY(0.001f);
+            rightPoint = new Point((getWidth() - rightImage.initWidth) / 2,
                     (getHeight() - rightImage.initHeight) / 2);
         }
     }
@@ -194,15 +198,17 @@ public class ImageViewer extends RelativeLayout {
         PointF pointF;
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
+
                 break;
             case MotionEvent.ACTION_MOVE:
+                // TODO 使用开始滚动时的点更好些
                 pointF = new PointF(ev.getX(0), ev.getY(0));
                 if (scrolling) {
-                    scrollImageBy(pointF.x - lastPoint.x, pointF.y - lastPoint.y);
+                    scrollImageBy(pointF.x - startPoint.x, pointF.y - startPoint.y);
                 } else {
                     if (distance(pointF, startPoint) > scrollDis) {
                         scrolling = true;
-                        scrollImageBy(pointF.x - lastPoint.x, pointF.y - lastPoint.y);
+                        scrollImageBy(pointF.x - startPoint.x, pointF.y - startPoint.y);
                     }
                 }
                 lastPoint = pointF;
@@ -227,7 +233,7 @@ public class ImageViewer extends RelativeLayout {
         if (resizing) {
 
         } else {
-            if (middleImage.getX() > getWidth() / 2 + middlePoint.x) {
+            if (middleImage.getScaleX()<0.5) {
                 scrollRight();
             } else if (middleImage.getX() < middlePoint.x - getWidth() / 2) {
                 scrollLeft();
@@ -242,10 +248,13 @@ public class ImageViewer extends RelativeLayout {
         if (rightImage != null) {
             removeView(rightImage);
         }
+
         rightImage = middleImage;
-        rightPoint = new Point(middlePoint.x + getWidth(), middlePoint.y);
+        rightPoint = new Point(middlePoint.x, middlePoint.y);
+
         middleImage = leftImage;
         middlePoint = new Point(leftPoint.x + getWidth(), leftPoint.y);
+
         if (imageIndex > 0) {
             leftImage = new TheImage(getContext());
             leftImage.load(files.get(imageIndex - 1), getWidth(), getHeight());
@@ -268,20 +277,27 @@ public class ImageViewer extends RelativeLayout {
         if (leftImage != null) {
             removeView(leftImage);
         }
+
         leftImage = middleImage;
         leftPoint = new Point(middlePoint.x - getWidth(), middlePoint.y);
+
         middleImage = rightImage;
-        middlePoint = new Point(rightPoint.x - getWidth(), rightPoint.y);
+        middlePoint = new Point(rightPoint.x, rightPoint.y);
+
         if (imageIndex < files.size() - 1) {
             rightImage = new TheImage(getContext());
             rightImage.load(files.get(imageIndex + 1), getWidth(), getHeight());
             LayoutParams paramsr = new LayoutParams(rightImage.initWidth, rightImage.initHeight);
             rightImage.setLayoutParams(paramsr);
             addView(rightImage);
-            rightImage.setX(getWidth() + (getWidth() - rightImage.initWidth) / 2);
+            rightImage.setX((getWidth() - rightImage.initWidth) / 2);
             rightImage.setY((getHeight() - rightImage.initHeight) / 2);
-            rightPoint = new Point(getWidth() + (getWidth() - rightImage.initWidth) / 2,
+            rightImage.setImageAlpha(0);
+            rightImage.setScaleX(0.001f);
+            rightImage.setScaleY(0.001f);
+            rightPoint = new Point((getWidth() - rightImage.initWidth) / 2,
                     (getHeight() - rightImage.initHeight) / 2);
+
         } else {
             rightImage = null;
             rightPoint = null;
@@ -299,14 +315,34 @@ public class ImageViewer extends RelativeLayout {
             animators.add(animatorLeft);
         }
 
-        ObjectAnimator animatorMiddle = ObjectAnimator.ofFloat(middleImage, "x",
+        ObjectAnimator holderMiddleX = ObjectAnimator.ofFloat(middleImage, "x",
                 middleImage.getX(), middlePoint.x);
-        animators.add(animatorMiddle);
+        ObjectAnimator holderMiddleAlpha = ObjectAnimator.ofFloat(middleImage, "imageAlpha",
+                middleImage.getImageAlpha(), 255);
+        ObjectAnimator holderMiddleScaleX = ObjectAnimator.ofFloat(middleImage, "scaleX",
+                middleImage.getScaleX(), 1f);
+        ObjectAnimator holderMiddleScaleY = ObjectAnimator.ofFloat(middleImage, "scaleY",
+                middleImage.getScaleY(), 1f);
+        
+        animators.add(holderMiddleX);
+        animators.add(holderMiddleAlpha);
+        animators.add(holderMiddleScaleX);
+        animators.add(holderMiddleScaleY);
 
         if (rightImage != null) {
-            ObjectAnimator animatorRight = ObjectAnimator.ofFloat(rightImage, "x",
+            ObjectAnimator holderRightX = ObjectAnimator.ofFloat(rightImage, "x",
                     rightImage.getX(), rightPoint.x);
-            animators.add(animatorRight);
+            ObjectAnimator holderRightAlpha = ObjectAnimator.ofFloat(rightImage, "imageAlpha",
+                    rightImage.getImageAlpha(), 255);
+            ObjectAnimator holderRightScaleX = ObjectAnimator.ofFloat(rightImage, "scaleX",
+                    rightImage.getScaleX(), 0.001f);
+            ObjectAnimator holderRightScaleY = ObjectAnimator.ofFloat(rightImage, "scaleY",
+                    rightImage.getScaleY(), 0.001f);
+            
+            animators.add(holderRightX);
+            animators.add(holderRightAlpha);
+            animators.add(holderRightScaleX);
+            animators.add(holderRightScaleY);
         }
         animatorSet.playTogether(animators);
         animatorSet.setDuration(300);
@@ -322,27 +358,37 @@ public class ImageViewer extends RelativeLayout {
     }
 
     public void scrollThreeBodyBy(float x, float y) {
-        if ((middleImage.getX() + x) >= middlePoint.x) {
+        // TODO 如果是动画过程中动画停止，按住滑动，这里得到的结果将是错的
+        if (x > 0) {
             // 右侧，rightImage不动
             if (leftImage == null) {
                 middleImage.setX(middlePoint.x);
             } else {
-                leftImage.setX(leftImage.getX() + x);
-                middleImage.setX(middleImage.getX() + x);
+                leftImage.setX(leftPoint.x + x);
+
+                // middle shrink
+                float scale = (1 - x / getWidth());
+                middleImage.setScaleX(scale);
+                middleImage.setScaleY(scale);
+                middleImage.setImageAlpha((int) (255 * (1 - x / getWidth())));
             }
             if (rightImage != null) {
-                rightImage.setX(rightPoint.x);
+                rightImage.setImageAlpha(0);
             }
         } else {
             // 左侧，leftImage不动
             if (rightImage == null) {
                 middleImage.setX(middlePoint.x);
             } else {
-                rightImage.setX(rightImage.getX() + x);
-                middleImage.setX(middleImage.getX() + x);
+                middleImage.setX(middlePoint.x + x);
+                // expand right
+                float scale = (-x / getWidth());
+                rightImage.setScaleX(scale);
+                rightImage.setScaleY(scale);
+                rightImage.setImageAlpha((int) (255 * (-x / getWidth())));
             }
             if (leftImage != null) {
-                leftImage.setX(leftPoint.x);
+                leftImage.setImageAlpha(0);
             }
         }
     }

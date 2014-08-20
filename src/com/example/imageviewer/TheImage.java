@@ -18,6 +18,8 @@ public class TheImage extends ImageView {
     public int initWidth = 0;
     public int initHeight = 0;
 
+    public float initScale = 1f;
+
     public TheImage(Context context) {
         super(context);
     }
@@ -39,12 +41,11 @@ public class TheImage extends ImageView {
                 bitmap.recycle();
             }
         } catch (Exception e) {
-            
+
         }
     }
 
     public void load(File file, int w, int h) {
-        setBackgroundColor(Color.CYAN);
         Bitmap bitmap;
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
@@ -65,6 +66,7 @@ public class TheImage extends ImageView {
         }
         initWidth = (int) (wid / r);
         initHeight = (int) (hei / r);
+        initScale = 1 / r;
         if (r < 1) {
             r = 1;
         }
