@@ -9,6 +9,7 @@ import android.animation.Animator.AnimatorListener;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
+import android.animation.TimeInterpolator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -20,6 +21,8 @@ import android.os.Handler;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 
@@ -32,6 +35,9 @@ public class ImageViewer extends RelativeLayout {
     boolean scrolling = false;
     boolean resizing = false;
 
+    // 按下时的点
+    PointF downPoint = new PointF(0f, 0f);
+    // 拖动开始的点
     PointF startPoint = new PointF(0f, 0f);
     PointF lastPoint = new PointF(0f, 0f);
 
@@ -43,6 +49,15 @@ public class ImageViewer extends RelativeLayout {
 
     ArrayList<File> files = new ArrayList<File>();
     int imageIndex = 0;
+
+    VelocityTracker velocityTracker;
+
+    float maxVelovityInDP = 1f;
+    float maxVelocityValue = 1f;
+    float minValidVelocityInDP = 0.3f;
+    float minValidVelocityValue = 0.3f;
+
+    float scaleFrom = 0.8f;
 
     public ImageViewer(Context context) {
         super(context);
@@ -88,6 +103,16 @@ public class ImageViewer extends RelativeLayout {
     }
 
     public void setupImages() {
+
+        if (velocityTracker == null) {
+            velocityTracker = VelocityTracker.obtain();
+        }
+
+        maxVelocityValue = maxVelovityInDP
+                * getContext().getResources().getDisplayMetrics().density;
+        minValidVelocityValue = minValidVelocityInDP
+                * getContext().getResources().getDisplayMetrics().density;
+
         if (files.size() == 1) {
             leftImage = null;
             middleImage = new TheImage(getContext());
@@ -108,15 +133,18 @@ public class ImageViewer extends RelativeLayout {
             }
         }
 
-        if (leftImage != null) {
-            leftImage.load(files.get(imageIndex - 1), getWidth(), getHeight());
-            LayoutParams paramsl = new LayoutParams(leftImage.initWidth, leftImage.initHeight);
-            leftImage.setLayoutParams(paramsl);
-            addView(leftImage);
-            leftImage.setX((getWidth() - leftImage.initWidth) / 2 - getWidth());
-            leftImage.setY((getHeight() - leftImage.initHeight) / 2);
-            leftPoint = new Point((getWidth() - leftImage.initWidth) / 2 - getWidth(),
-                    (getHeight() - leftImage.initHeight) / 2);
+        if (rightImage != null) {
+            rightImage.load(files.get(imageIndex + 1), getWidth(), getHeight());
+            LayoutParams paramsr = new LayoutParams(rightImage.initWidth, rightImage.initHeight);
+            rightImage.setLayoutParams(paramsr);
+            addView(rightImage);
+            rightImage.setX((getWidth() - rightImage.initWidth) / 2);
+            rightImage.setY((getHeight() - rightImage.initHeight) / 2);
+            rightImage.setAlpha(0f);
+            rightImage.setScaleX(scaleFrom);
+            rightImage.setScaleY(scaleFrom);
+            rightPoint = new Point((getWidth() - rightImage.initWidth) / 2,
+                    (getHeight() - rightImage.initHeight) / 2);
         }
 
         middleImage.load(files.get(imageIndex), getWidth(), getHeight());
@@ -128,19 +156,17 @@ public class ImageViewer extends RelativeLayout {
         middlePoint = new Point((getWidth() - middleImage.initWidth) / 2,
                 (getHeight() - middleImage.initHeight) / 2);
 
-        if (rightImage != null) {
-            rightImage.load(files.get(imageIndex + 1), getWidth(), getHeight());
-            LayoutParams paramsr = new LayoutParams(rightImage.initWidth, rightImage.initHeight);
-            rightImage.setLayoutParams(paramsr);
-            addView(rightImage);
-            rightImage.setX((getWidth() - rightImage.initWidth) / 2);
-            rightImage.setY((getHeight() - rightImage.initHeight) / 2);
-            rightImage.setImageAlpha(0);
-            rightImage.setScaleX(0.001f);
-            rightImage.setScaleY(0.001f);
-            rightPoint = new Point((getWidth() - rightImage.initWidth) / 2,
-                    (getHeight() - rightImage.initHeight) / 2);
+        if (leftImage != null) {
+            leftImage.load(files.get(imageIndex - 1), getWidth(), getHeight());
+            LayoutParams paramsl = new LayoutParams(leftImage.initWidth, leftImage.initHeight);
+            leftImage.setLayoutParams(paramsl);
+            addView(leftImage);
+            leftImage.setX((getWidth() - leftImage.initWidth) / 2 - getWidth());
+            leftImage.setY((getHeight() - leftImage.initHeight) / 2);
+            leftPoint = new Point((getWidth() - leftImage.initWidth) / 2 - getWidth(),
+                    (getHeight() - leftImage.initHeight) / 2);
         }
+
     }
 
     public boolean isImageFile(File file) {
@@ -157,20 +183,18 @@ public class ImageViewer extends RelativeLayout {
         PointF pointF;
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                if (animatorSet != null && animatorSet.isRunning()) {
-                    animatorSet.cancel();
-                }
                 scrolling = false;
                 flag = false;
-                startPoint = new PointF(ev.getX(0), ev.getY(0));
-                lastPoint = new PointF(ev.getX(0), ev.getY(0));
+                downPoint = new PointF(ev.getX(), ev.getY());
+                startPoint = new PointF(ev.getX(), ev.getY());
+                lastPoint = new PointF(ev.getX(), ev.getY());
                 break;
             case MotionEvent.ACTION_MOVE:
-                pointF = new PointF(ev.getX(0), ev.getY(0));
+                pointF = new PointF(ev.getX(), ev.getY());
                 if (scrolling) {
                     flag = true;
                 } else {
-                    if (distance(pointF, startPoint) > scrollDis) {
+                    if (distance(pointF, downPoint) > scrollDis) {
                         flag = true;
                         scrolling = true;
                     } else {
@@ -189,25 +213,27 @@ public class ImageViewer extends RelativeLayout {
             default:
                 break;
         }
-        return flag;
+        return false;
     }
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        velocityTracker.addMovement(ev);
+        int pointIndex = ev.getActionIndex();
         PointF pointF;
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
 
                 break;
             case MotionEvent.ACTION_MOVE:
-                // TODO 使用开始滚动时的点更好些
-                pointF = new PointF(ev.getX(0), ev.getY(0));
+                pointF = new PointF(ev.getX(), ev.getY());
                 if (scrolling) {
                     scrollImageBy(pointF.x - startPoint.x, pointF.y - startPoint.y);
                 } else {
-                    if (distance(pointF, startPoint) > scrollDis) {
+                    if (distance(pointF, downPoint) > scrollDis) {
                         scrolling = true;
+                        startPoint = lastPoint;
                         scrollImageBy(pointF.x - startPoint.x, pointF.y - startPoint.y);
                     }
                 }
@@ -220,7 +246,9 @@ public class ImageViewer extends RelativeLayout {
                 if (scrolling) {
                     scrolling = false;
                 }
-                onDragEnd(ev.getX(0), ev.getY(0));
+                final VelocityTracker tmpTracker = velocityTracker;
+                tmpTracker.computeCurrentVelocity(1, maxVelocityValue);
+                onDragEnd(tmpTracker.getXVelocity(), tmpTracker.getYVelocity());
                 break;
 
             default:
@@ -229,21 +257,55 @@ public class ImageViewer extends RelativeLayout {
         return super.onTouchEvent(ev);
     }
 
-    public void onDragEnd(float ex, float ey) {
+    float factor = 0.3f;
+
+    public void onDragEnd(float vx, float vy) {
         if (resizing) {
 
         } else {
-            if (middleImage.getScaleX()<0.5) {
-                scrollRight();
-            } else if (middleImage.getX() < middlePoint.x - getWidth() / 2) {
-                scrollLeft();
+            int dura = 200;
+            if (Math.abs(vx) > minValidVelocityValue) {
+                if (vx < 0) {
+                    if (middleImage.getScaleX() < 1) {
+                        dura = Math
+                                .abs((int) ((1 - middleImage.getScaleX()) / (1 - scaleFrom)
+                                        * getWidth() / vx * factor));
+                        scrollBack(dura);
+                    } else {
+                        if (imageIndex < files.size() - 1) {
+                            dura = Math
+                                    .abs((int) ((getWidth() + middleImage.getX() - middlePoint.x)
+                                            / vx * factor));
+                            scrollLeft(dura);
+                        }
+                    }
+                } else {
+                    if (middleImage.getScaleX() < 1) {
+                        if (imageIndex > 0) {
+                            dura = Math
+                                    .abs((int) ((middleImage.getScaleX() - scaleFrom)
+                                            / (1 - scaleFrom) * getWidth() / vx * factor));
+                            scrollRight(dura);
+                        }
+                    } else {
+                        dura = Math
+                                .abs((int) ((middleImage.getX() - middlePoint.x) / vx * factor));
+                        scrollBack(dura);
+                    }
+                }
             } else {
-                scrollBack();
+                if (middleImage.getScaleX() < (1 + scaleFrom) / 2) {
+                    scrollRight(dura);
+                } else if (middleImage.getX() < middlePoint.x - getWidth() / 2) {
+                    scrollLeft(dura);
+                } else {
+                    scrollBack(dura);
+                }
             }
         }
     }
 
-    public void scrollRight() {
+    public void scrollRight(int dura) {
         imageIndex--;
         if (rightImage != null) {
             removeView(rightImage);
@@ -269,10 +331,10 @@ public class ImageViewer extends RelativeLayout {
             leftImage = null;
             leftPoint = null;
         }
-        scrollBack();
+        scrollBack(dura);
     }
 
-    public void scrollLeft() {
+    public void scrollLeft(int dura) {
         imageIndex++;
         if (leftImage != null) {
             removeView(leftImage);
@@ -289,24 +351,25 @@ public class ImageViewer extends RelativeLayout {
             rightImage.load(files.get(imageIndex + 1), getWidth(), getHeight());
             LayoutParams paramsr = new LayoutParams(rightImage.initWidth, rightImage.initHeight);
             rightImage.setLayoutParams(paramsr);
-            addView(rightImage);
+            rightImage.setAlpha(0f);
+            addView(rightImage, 0);
             rightImage.setX((getWidth() - rightImage.initWidth) / 2);
             rightImage.setY((getHeight() - rightImage.initHeight) / 2);
-            rightImage.setImageAlpha(0);
-            rightImage.setScaleX(0.001f);
-            rightImage.setScaleY(0.001f);
+            rightImage.setScaleX(scaleFrom);
+            rightImage.setScaleY(scaleFrom);
             rightPoint = new Point((getWidth() - rightImage.initWidth) / 2,
                     (getHeight() - rightImage.initHeight) / 2);
-
         } else {
             rightImage = null;
             rightPoint = null;
         }
-        scrollBack();
+        scrollBack(dura);
     }
 
-    public void scrollBack() {
-        System.out.println("childcount " + getChildCount());
+    public void scrollBack(int dura) {
+        if (animatorSet != null && animatorSet.isRunning()) {
+            animatorSet.cancel();
+        }
         animatorSet = new AnimatorSet();
         ArrayList<Animator> animators = new ArrayList<Animator>();
         if (leftImage != null) {
@@ -317,13 +380,13 @@ public class ImageViewer extends RelativeLayout {
 
         ObjectAnimator holderMiddleX = ObjectAnimator.ofFloat(middleImage, "x",
                 middleImage.getX(), middlePoint.x);
-        ObjectAnimator holderMiddleAlpha = ObjectAnimator.ofFloat(middleImage, "imageAlpha",
-                middleImage.getImageAlpha(), 255);
+        ObjectAnimator holderMiddleAlpha = ObjectAnimator.ofFloat(middleImage, "alpha",
+                middleImage.getAlpha(), 1f);
         ObjectAnimator holderMiddleScaleX = ObjectAnimator.ofFloat(middleImage, "scaleX",
                 middleImage.getScaleX(), 1f);
         ObjectAnimator holderMiddleScaleY = ObjectAnimator.ofFloat(middleImage, "scaleY",
                 middleImage.getScaleY(), 1f);
-        
+
         animators.add(holderMiddleX);
         animators.add(holderMiddleAlpha);
         animators.add(holderMiddleScaleX);
@@ -332,20 +395,21 @@ public class ImageViewer extends RelativeLayout {
         if (rightImage != null) {
             ObjectAnimator holderRightX = ObjectAnimator.ofFloat(rightImage, "x",
                     rightImage.getX(), rightPoint.x);
-            ObjectAnimator holderRightAlpha = ObjectAnimator.ofFloat(rightImage, "imageAlpha",
-                    rightImage.getImageAlpha(), 255);
+            ObjectAnimator holderRightAlpha = ObjectAnimator.ofFloat(rightImage, "alpha",
+                    rightImage.getAlpha(), 0f);
             ObjectAnimator holderRightScaleX = ObjectAnimator.ofFloat(rightImage, "scaleX",
-                    rightImage.getScaleX(), 0.001f);
+                    rightImage.getScaleX(), scaleFrom);
             ObjectAnimator holderRightScaleY = ObjectAnimator.ofFloat(rightImage, "scaleY",
-                    rightImage.getScaleY(), 0.001f);
-            
+                    rightImage.getScaleY(), scaleFrom);
+
             animators.add(holderRightX);
             animators.add(holderRightAlpha);
             animators.add(holderRightScaleX);
             animators.add(holderRightScaleY);
         }
         animatorSet.playTogether(animators);
-        animatorSet.setDuration(300);
+        animatorSet.setInterpolator(new DecelerateInterpolator());
+        animatorSet.setDuration(dura);
         animatorSet.start();
     }
 
@@ -365,15 +429,14 @@ public class ImageViewer extends RelativeLayout {
                 middleImage.setX(middlePoint.x);
             } else {
                 leftImage.setX(leftPoint.x + x);
-
                 // middle shrink
-                float scale = (1 - x / getWidth());
+                float scale = scaleFrom + (1 - scaleFrom) * (1 - x / getWidth());
                 middleImage.setScaleX(scale);
                 middleImage.setScaleY(scale);
-                middleImage.setImageAlpha((int) (255 * (1 - x / getWidth())));
+                middleImage.setAlpha((1 - x / getWidth()));
             }
             if (rightImage != null) {
-                rightImage.setImageAlpha(0);
+                rightImage.setAlpha(0f);
             }
         } else {
             // 左侧，leftImage不动
@@ -382,23 +445,14 @@ public class ImageViewer extends RelativeLayout {
             } else {
                 middleImage.setX(middlePoint.x + x);
                 // expand right
-                float scale = (-x / getWidth());
+                float scale = scaleFrom + (1 - scaleFrom) * (-x / getWidth());
                 rightImage.setScaleX(scale);
                 rightImage.setScaleY(scale);
-                rightImage.setImageAlpha((int) (255 * (-x / getWidth())));
+                rightImage.setAlpha((-x / getWidth()));
             }
             if (leftImage != null) {
-                leftImage.setImageAlpha(0);
+                leftImage.setX(leftPoint.x);
             }
         }
     }
-
-    public void onScrollDone() {
-        // left push
-        // middle-->left,left-->right,right-->middle
-
-        // right push
-        // middlg-->right,right-->left,left-->middle
-    }
-
 }
