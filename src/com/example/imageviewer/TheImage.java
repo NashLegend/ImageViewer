@@ -18,9 +18,11 @@ import android.graphics.PointF;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.AsyncTask;
 import android.util.AttributeSet;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.View;
+import android.view.GestureDetector.SimpleOnGestureListener;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.ImageView;
 
@@ -53,9 +55,8 @@ public class TheImage extends ImageView {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         try {
-            Bitmap bitmap = ((BitmapDrawable) getDrawable()).getBitmap();
-            if (!bitmap.isRecycled()) {
-                bitmap.recycle();
+            if (!theBitmap.isRecycled()) {
+                theBitmap.recycle();
             }
         } catch (Exception e) {
 
@@ -66,6 +67,7 @@ public class TheImage extends ImageView {
     float dist2 = 10f;
     PointF downPoint = new PointF(0f, 0f);
     PointF lastPoint = new PointF(0f, 0f);
+    Bitmap theBitmap;
     float[] values = {
             0, 0, 0, 0, 0, 0, 0, 0, 0
     };
@@ -100,13 +102,24 @@ public class TheImage extends ImageView {
                         flag = false;
                     }
                 } else {
+                    getImageMatrix().getValues(values);
                     if (TouchMode == MODE_ZOOM) {
                         dist2 = distance(event);
-                        getImageMatrix().postScale((dist2 / dist1), (dist2 / dist1), centerPoint.x,
-                                centerPoint.y);
+                        if (values[0] * dist2 / dist1 > initValues[0]) {
+                            getImageMatrix().postScale((dist2 / dist1), (dist2 / dist1),
+                                    centerPoint.x,
+                                    centerPoint.y);
+                        } else {
+                            // do nothing
+                        }
                         dist1 = dist2;
                     } else {
                         if (lastPoint != null) {
+                            // top left
+                            // top right
+                            // bottom left
+                            // bottom right
+
                             getImageMatrix().postTranslate(event.getX() - lastPoint.x,
                                     event.getY() - lastPoint.y);
                         } else {
@@ -133,6 +146,7 @@ public class TheImage extends ImageView {
             default:
                 break;
         }
+        detector.onTouchEvent(event);
         return flag;
     }
 
@@ -154,8 +168,12 @@ public class TheImage extends ImageView {
         return PointF.length(pointF.x - pointF2.x, pointF.y - pointF2.y);
     }
 
+    GestureDetector detector;
+
     public void load(File file, int w, int h) {
         setBackgroundColor(Color.TRANSPARENT);
+        detector = new GestureDetector(getContext(), new GestureListener());
+
         final BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(file.getAbsolutePath(), options);
@@ -192,9 +210,34 @@ public class TheImage extends ImageView {
 
         @Override
         protected void onPostExecute(Bitmap result) {
-            setImageBitmap(result);
+            theBitmap = result;
+            setImageBitmap(theBitmap);
             getImageMatrix().getValues(initValues);
             initMatrix.set(getImageMatrix());
+        }
+    }
+
+    public void resetMatrix() {
+        if (TouchMode == MODE_NORMAL) {
+            getImageMatrix().postScale(2, 2, getWidth() / 2, getHeight() / 2);
+            TouchMode = MODE_DRAG;
+        } else {
+            getImageMatrix().set(initMatrix);
+            TouchMode = MODE_NORMAL;
+        }
+
+        postInvalidate();
+    }
+
+    class GestureListener extends SimpleOnGestureListener {
+        public GestureListener() {
+
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            resetMatrix();
+            return super.onDoubleTap(e);
         }
     }
 
